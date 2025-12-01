@@ -2,6 +2,7 @@ package com.nathan.memex;
 
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import java.util.List;
 
 @RestController
 public class IngestionController {
@@ -22,5 +23,10 @@ public class IngestionController {
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
+    }
+
+    @GetMapping("/api/search")
+    public List<MemexDocument> searchDocs(@RequestParam("q") String query) {
+        return ingestionService.search(query);
     }
 }

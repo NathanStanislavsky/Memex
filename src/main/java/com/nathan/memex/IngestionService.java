@@ -4,6 +4,7 @@ import org.apache.tika.Tika;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
+import java.util.List;
 
 @Service
 public class IngestionService {
@@ -30,5 +31,10 @@ public class IngestionService {
         } catch (Exception e) {
             throw new IOException("Failed to process file", e);
         }
+    }
+
+    public List<MemexDocument> search(String keyword) {
+        System.out.println("Searching for: " + keyword);
+        return repository.findByContent(keyword);
     }
 }
