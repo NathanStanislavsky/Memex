@@ -9,19 +9,26 @@ import java.io.IOException;
 public class IngestionService {
 
     private final Tika tika;
+    private final MemexRepository repository;
 
-    public IngestionService() {
+    public IngestionService(MemexRepository repository) {
         this.tika = new Tika();
+        this.repository = repository;
     }
 
     public String extractContent(MultipartFile file) throws IOException {
         try {
-            String type = tika.detect(file.getInputStream());
-            System.out.println("Reading file of type: " + type);
+            String content = tika.parseToString(file.getInputStream());
 
-            return tika.parseToString(file.getInputStream());
+            MemexDocument doc = new MemexDocument(file.getOriginalFilename(), content);
+
+            repository.save(doc);
+            
+            System.out.println("Saved document: " + doc.getId());
+
+            return content;
         } catch (Exception e) {
-            throw new IOException("Tika failed to parse file", e);
+            throw new IOException("Failed to process file", e);
         }
     }
 }
