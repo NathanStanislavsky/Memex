@@ -22,10 +22,7 @@ public class IngestionService {
             String content = tika.parseToString(file.getInputStream());
 
             MemexDocument doc = new MemexDocument(file.getOriginalFilename(), content);
-
             repository.save(doc);
-            
-            System.out.println("Saved document: " + doc.getId());
 
             return content;
         } catch (Exception e) {
@@ -34,7 +31,6 @@ public class IngestionService {
     }
 
     public List<MemexDocument> search(String keyword) {
-        System.out.println("Searching for: " + keyword);
         return repository.findByContent(keyword);
     }
 }
