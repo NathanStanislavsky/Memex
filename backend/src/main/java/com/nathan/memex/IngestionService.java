@@ -5,8 +5,12 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 @Service
@@ -14,19 +18,32 @@ public class IngestionService {
 
     private final RabbitTemplate rabbitTemplate;
     private final MemexRepository repository;
+    private final S3Client s3Client;
     private final Tika tika;
 
-    public IngestionService(RabbitTemplate rabbitTemplate, MemexRepository repository) {
+    private static final String BUCKET_NAME = "memex-files";
+
+    public IngestionService(RabbitTemplate rabbitTemplate, MemexRepository repository, S3Client s3Client) {
         this.rabbitTemplate = rabbitTemplate;
         this.repository = repository;
+        this.s3Client = s3Client;
         this.tika = new Tika();
     }
 
-    public String startIngestion(MultipartFile file) {
+    public String startIngestion(MultipartFile file) throws Exception {
         String filename = file.getOriginalFilename();
         
-        System.out.println("API: Received request for " + filename);
+        System.out.println("API: Uploading " + filename + " to S3...");
+
+        PutObjectRequest putReq = PutObjectRequest.builder()
+                .bucket(BUCKET_NAME)
+                .key(filename)
+                .build();
+
+        s3Client.putObject(putReq, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
         
+        System.out.println("API: Upload Complete. Sending message to Queue.");
+
         rabbitTemplate.convertAndSend("memex-ingestion-queue", filename);
         
         return "PROCESSING_STARTED";
@@ -34,26 +51,29 @@ public class IngestionService {
 
     @RabbitListener(queues = "memex-ingestion-queue")
     public void consumeMessage(String filename) {
-        System.out.println("WORKER: Picked up job for " + filename);
+        System.out.println("WORKER: Received task for " + filename);
 
         try {
-            Thread.sleep(5000);
-            System.out.println("WORKER: Finished processing " + filename);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
+            GetObjectRequest getReq = GetObjectRequest.builder()
+                    .bucket(BUCKET_NAME)
+                    .key(filename)
+                    .build();
 
-    public String extractContent(MultipartFile file) throws IOException {
-        try {
-            String content = tika.parseToString(file.getInputStream());
+            try (InputStream s3Stream = s3Client.getObject(getReq)) {
+                
+                System.out.println("WORKER: Downloaded stream. Parsing PDF...");
+                
+                String content = tika.parseToString(s3Stream);
 
-            MemexDocument doc = new MemexDocument(file.getOriginalFilename(), content);
-            repository.save(doc);
+                MemexDocument doc = new MemexDocument(filename, content);
+                repository.save(doc);
+                
+                System.out.println("WORKER: Success! Indexed " + filename);
+            }
 
-            return content;
         } catch (Exception e) {
-            throw new IOException("Failed to process file", e);
+            System.err.println("WORKER FAILED: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
