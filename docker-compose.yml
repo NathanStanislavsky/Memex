@@ -30,5 +30,16 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
+
+  minio:
+    image: quay.io/minio/minio
+    container_name: memex-minio
+    ports:
+      - "9000:9000" # API Port (Java talks to this)
+      - "9001:9001" # Console Port (You login here)
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password
+    command: server /data --console-address ":9001"
 volumes:
   es-data:
