@@ -41,5 +41,33 @@ services:
       - MINIO_ROOT_USER=admin
       - MINIO_ROOT_PASSWORD=password
     command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+
+  app:
+    build: .
+    container_name: memex-app
+    ports:
+      - "8080:8080"
+    environment:
+      # CONNECT TO RABBITMQ
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=guest
+      - SPRING_RABBITMQ_PASSWORD=guest
+      
+      # CONNECT TO ELASTICSEARCH
+      - SPRING_ELASTICSEARCH_URIS=http://elasticsearch:9200
+      
+      # CONNECT TO MINIO (S3)
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=admin
+      - S3_SECRET_KEY=password
+      - S3_BUCKET_NAME=memex-files
+    depends_on:
+      - elasticsearch
+      - rabbitmq
+      - minio
 volumes:
   es-data:
+  minio-data:
