@@ -17,10 +17,8 @@ public class IngestionController {
     @PostMapping("/api/upload")
     public String upload(@RequestParam("file") MultipartFile file) {
         try {
-            String content = ingestionService.startIngestion(file);
-            
-            return "SUCCESS! Read " + content.length() + " characters.\nPreview:\n" 
-                   + content.substring(0, Math.min(content.length(), 200)) + "...";
+            String result = ingestionService.startIngestion(file);
+            return result;
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
