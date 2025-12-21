@@ -3,6 +3,7 @@ package com.nathan.memex;
 import org.apache.tika.Tika;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -20,14 +21,18 @@ public class IngestionService {
     private final MemexRepository repository;
     private final S3Client s3Client;
     private final Tika tika;
+    private final String bucketName;
 
-    private static final String BUCKET_NAME = "memex-files";
-
-    public IngestionService(RabbitTemplate rabbitTemplate, MemexRepository repository, S3Client s3Client) {
+    public IngestionService(
+            RabbitTemplate rabbitTemplate, 
+            MemexRepository repository, 
+            S3Client s3Client,
+            @Value("${S3_BUCKET_NAME:memex-files}") String bucketName) {
         this.rabbitTemplate = rabbitTemplate;
         this.repository = repository;
         this.s3Client = s3Client;
         this.tika = new Tika();
+        this.bucketName = bucketName;
     }
 
     public String startIngestion(MultipartFile file) throws Exception {
@@ -36,7 +41,7 @@ public class IngestionService {
         System.out.println("API: Uploading " + filename + " to S3...");
 
         PutObjectRequest putReq = PutObjectRequest.builder()
-                .bucket(BUCKET_NAME)
+                .bucket(bucketName)
                 .key(filename)
                 .build();
 
@@ -55,7 +60,7 @@ public class IngestionService {
 
         try {
             GetObjectRequest getReq = GetObjectRequest.builder()
-                    .bucket(BUCKET_NAME)
+                    .bucket(bucketName)
                     .key(filename)
                     .build();
 
