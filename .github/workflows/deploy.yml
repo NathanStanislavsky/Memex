@@ -22,6 +22,7 @@ jobs:
         cache: maven
 
     - name: Run Unit Tests
+      working-directory: ./backend
       run: mvn test
 
     - name: Login to Docker Hub
