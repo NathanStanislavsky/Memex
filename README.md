@@ -33,7 +33,7 @@ cd memex
 This uses `docker-compose.yml` to build the Java app from source and spin up all dependencies.
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 ### 3. Verify Connectivity
