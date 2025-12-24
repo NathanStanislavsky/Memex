@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
 
@@ -12,9 +12,26 @@ function App() {
   const [results, setResults] = useState<MemexDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeNav, setActiveNav] = useState("all");
+
+  // Command K shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        const searchInput = document.querySelector(".search-bar") as HTMLInputElement;
+        searchInput?.focus();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleSearch = async () => {
-    if (!query) {
+    if (!query.trim()) {
+      setResults([]);
       return;
     }
 
@@ -22,11 +39,12 @@ function App() {
 
     try {
       const response = await axios.get(
-        `http://localhost:8080/api/search?q=${query}`
+        `http://localhost:8080/api/search?q=${encodeURIComponent(query)}`
       );
       setResults(response.data);
     } catch (error) {
       console.error("Search failed: ", error);
+      setResults([]);
     } finally {
       setLoading(false);
     }
@@ -48,62 +66,153 @@ function App() {
         }
       );
       setUploadStatus(response.data);
+      setTimeout(() => setUploadStatus(""), 3000);
     } catch (error) {
       console.error("Upload failed: ", error);
+      setUploadStatus("Upload failed. Please try again.");
     }
   };
 
+  const highlightText = (text: string, searchQuery: string): JSX.Element => {
+    if (!searchQuery.trim()) {
+      return <>{text}</>;
+    }
+
+    const parts = text.split(new RegExp(`(${searchQuery})`, "gi"));
+    return (
+      <>
+        {parts.map((part, index) =>
+          part.toLowerCase() === searchQuery.toLowerCase() ? (
+            <span key={index} className="highlight">
+              {part}
+            </span>
+          ) : (
+            part
+          )
+        )}
+      </>
+    );
+  };
+
+  const truncateText = (text: string, maxLength: number = 200): string => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + "...";
+  };
+
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "2rem" }}>
-      <h1>Memex</h1>
-
-      <div
-        style={{
-          marginBottom: "2rem",
-          padding: "1rem",
-          border: "1px solid #ccc",
-        }}
+    <div className="app-container">
+      {/* Mobile Sidebar Toggle */}
+      <button
+        className="mobile-sidebar-toggle"
+        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        aria-label="Toggle sidebar"
       >
-        <h3>Add to Memory</h3>
-        <input type="file" onChange={handleUpload} />
-        <p>{uploadStatus}</p>
-      </div>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M3 5h14M3 10h14M3 15h14" />
+        </svg>
+      </button>
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "1rem" }}>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search your brain..."
-          style={{ flex: 1, padding: "10px", fontSize: "16px" }}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-        />
-        <button onClick={handleSearch} style={{ padding: "10px 20px" }}>
-          Search
-        </button>
-      </div>
-
-      {loading && <p>Thinking...</p>}
-
-      <div>
-        {results.map((doc) => (
-          <div
-            key={doc.id}
-            style={{
-              marginBottom: "1rem",
-              padding: "1rem",
-              background: "#f5f5f5",
-              borderRadius: "8px",
-            }}
+      {/* Sidebar */}
+      <aside className={`sidebar ${sidebarCollapsed ? "collapsed" : ""}`}>
+        <div className="sidebar-header">
+          <h1 className="sidebar-title">Memex</h1>
+          <button
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            aria-label="Collapse sidebar"
           >
-            <h4 style={{ margin: "0 0 0.5rem 0" }}>📄 {doc.id}</h4>
-            <p style={{ fontSize: "14px", color: "#555" }}>
-              {doc.content.substring(0, 300)}...
-            </p>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M11 4L5 8l6 4" />
+            </svg>
+          </button>
+        </div>
+        <nav className="sidebar-nav">
+          <div className="nav-section">
+            <div className="nav-section-title">Navigation</div>
+            <div
+              className={`nav-item ${activeNav === "all" ? "active" : ""}`}
+              onClick={() => setActiveNav("all")}
+            >
+              All Notes
+            </div>
           </div>
-        ))}
-        {results.length === 0 && query && !loading && <p>No memories found.</p>}
-      </div>
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <main className={`main-content ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+        <div className="content-header">
+          <div className="search-container">
+            <input
+              type="text"
+              className="search-bar"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSearch();
+                }
+              }}
+              placeholder="Search your memories..."
+              autoFocus
+            />
+            <div className="search-hint">
+              <span>Press</span>
+              <kbd>⌘</kbd>
+              <kbd>K</kbd>
+              <span>to search</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="content-area">
+          <div className="upload-section">
+            <h3>Add to Memory</h3>
+            <label className="upload-input-wrapper">
+              <input
+                type="file"
+                className="upload-input"
+                onChange={handleUpload}
+                accept=".txt,.md,.pdf,.doc,.docx"
+              />
+              <span className="upload-button">Choose File</span>
+            </label>
+            {uploadStatus && (
+              <div className="upload-status">{uploadStatus}</div>
+            )}
+          </div>
+
+          <div className="results-container">
+            {loading && (
+              <div className="loading-state">Searching...</div>
+            )}
+
+            {!loading && results.length > 0 && (
+              <div className="results-grid">
+                {results.map((doc) => (
+                  <div key={doc.id} className="knowledge-card">
+                    <div className="card-header">
+                      <span className="card-icon">📄</span>
+                      <span className="card-id">{doc.id}</span>
+                    </div>
+                    <div className="card-content">
+                      {highlightText(truncateText(doc.content), query)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!loading && results.length === 0 && query && (
+              <div className="empty-state">
+                <div className="empty-state-icon">🔍</div>
+                <div className="empty-state-text">No memories found for "{query}"</div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
