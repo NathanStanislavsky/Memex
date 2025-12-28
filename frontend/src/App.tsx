@@ -30,26 +30,30 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const handleSearch = async () => {
+  useEffect(() => {
     if (!query.trim()) {
       setResults([]);
       return;
     }
 
-    setLoading(true);
+    const timeoutId = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await axios.get(
+          `${apiUrl('api/search')}?q=${encodeURIComponent(query)}`
+        );
+        setResults(response.data);
+      } catch (error) {
+        console.error("Search failed: ", error);
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
 
-    try {
-      const response = await axios.get(
-        `${apiUrl('api/search')}?q=${encodeURIComponent(query)}`
-      );
-      setResults(response.data);
-    } catch (error) {
-      console.error("Search failed: ", error);
-      setResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => clearTimeout(timeoutId);
+  }, [query]);
+
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -149,11 +153,6 @@ function App() {
               className="search-bar"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleSearch();
-                }
-              }}
               placeholder="Search your memories..."
               autoFocus
             />
