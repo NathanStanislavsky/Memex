@@ -15,11 +15,22 @@ public class IngestionController {
     }
 
     @PostMapping("/api/upload")
-    public String upload(@RequestParam("file") MultipartFile file) {
+    public String upload(@RequestParam("files") List<MultipartFile> files) {
         try {
-            String result = ingestionService.startIngestion(file);
-            return result;
+            if (files == null || files.isEmpty()) {
+                return "Error: No files provided";
+            }
+            int processedCount = 0;
+            for (MultipartFile file : files) {
+                if (file.isEmpty()) {
+                    continue;
+                }
+                ingestionService.startIngestion(file);
+                processedCount++;
+            }
+            return "Uploaded " + processedCount + " file(s) successfully";
         } catch (Exception e) {
+            e.printStackTrace();
             return "Error: " + e.getMessage();
         }
     }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
+import { apiUrl } from "./config";
 
 interface MemexDocument {
   id: string;
@@ -39,7 +40,7 @@ function App() {
 
     try {
       const response = await axios.get(
-        `http://localhost:8080/api/search?q=${encodeURIComponent(query)}`
+        `${apiUrl('api/search')}?q=${encodeURIComponent(query)}`
       );
       setResults(response.data);
     } catch (error) {
@@ -51,21 +52,21 @@ function App() {
   };
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      for (let i = 0; i < files.length; i++) {
+        formData.append("files", files[i]);
+      }
       
-      const response = await axios.post(
-        "http://localhost:8080/api/upload",
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
+      await axios.post(
+        apiUrl('api/upload'),
+        formData
       );
-      setUploadStatus(response.data);
+      const fileCount = files.length;
+      setUploadStatus(`${fileCount} file${fileCount > 1 ? 's' : ''} uploaded successfully`);
       setTimeout(() => setUploadStatus(""), 3000);
     } catch (error) {
       console.error("Upload failed: ", error);
@@ -174,8 +175,9 @@ function App() {
                 className="upload-input"
                 onChange={handleUpload}
                 accept=".txt,.md,.pdf,.doc,.docx"
+                multiple
               />
-              <span className="upload-button">Choose File</span>
+              <span className="upload-button">Choose Files</span>
             </label>
             {uploadStatus && (
               <div className="upload-status">{uploadStatus}</div>

@@ -20,6 +20,7 @@ Run the entire distributed system locally with a single command.
 
 - Docker Desktop installed and running
 - Java 17+ (optional, only if running app outside Docker)
+- Node.js 18+ (for frontend development)
 
 ### 1. Clone & Configure
 
@@ -36,9 +37,25 @@ This uses `docker-compose.yml` to build the Java app from source and spin up all
 docker compose up --build
 ```
 
-### 3. Verify Connectivity
+### 3. Start Frontend
 
-- **API Health**: http://localhost:8080/actuator/health
+If you want to run the frontend locally (recommended for development):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+**Frontend API Configuration**: The frontend connects to the backend API. By default, it expects the backend on port 8081 (when running locally outside Docker). To change this:
+
+1. Create a `.env.local` file in the `frontend` directory
+2. Add: `VITE_API_BASE_URL=http://localhost:8080` (for Docker setup) or `VITE_API_BASE_URL=http://localhost:8081` (for local backend)
+
+### 4. Verify Connectivity
+
+- **API Health**: http://localhost:8080/actuator/health (Docker) or http://localhost:8081/actuator/health (local)
+- **Frontend**: http://localhost:5173 (if running locally)
 - **RabbitMQ Dashboard**: http://localhost:15672 (User: `guest` / Pass: `guest`)
 - **MinIO Console**: http://localhost:9001 (User: `admin` / Pass: `password`)
 
