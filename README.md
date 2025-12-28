@@ -10,6 +10,7 @@ The infrastructure is fully automated using Terraform for provisioning and Docke
 - **Search Engine**: Elasticsearch 8.11 (optimized for low-memory environments)
 - **Message Broker**: RabbitMQ (Asynchronous ingestion)
 - **Object Storage**: MinIO (S3-compatible blob storage)
+- **Monitoring**: Prometheus + Grafana for metrics collection and visualization
 - **Infrastructure**: AWS EC2 (Terraform) + CI/CD (GitHub Actions)
 
 ## Quick Start: Local Development
@@ -58,8 +59,10 @@ npm run dev
 - **Frontend**: http://localhost:5173 (if running locally)
 - **RabbitMQ Dashboard**: http://localhost:15672 (User: `guest` / Pass: `guest`)
 - **MinIO Console**: http://localhost:9001 (User: `admin` / Pass: `password`)
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3000 (User: `admin` / Pass: `admin`)
 
-## ☁️ Cloud Deployment (AWS)
+## Cloud Deployment (AWS)
 
 This section details how to provision a production-grade environment on AWS using Infrastructure as Code (IaC).
 
@@ -113,7 +116,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 Create a production compose file on the server (`nano docker-compose.yml`) and paste the configuration below. This configuration pulls pre-built images from Docker Hub instead of building from source.
 
 <details>
-<summary>📄 <strong>Click to view production docker-compose.yml</strong></summary>
+<summary><strong>Click to view production docker-compose.yml</strong></summary>
 
 ```yaml
 version: '3.8'
@@ -216,7 +219,7 @@ To avoid AWS charges, destroy the infrastructure when finished:
 terraform destroy --auto-approve
 ```
 
-## 🛠 CI/CD Pipeline
+## CI/CD Pipeline
 
 This repository includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that triggers on every push to `main`.
 
@@ -226,3 +229,108 @@ The pipeline includes:
 - **Build**: Compiles the Java application with Maven
 - **Containerize**: Builds the Docker image
 - **Publish**: Pushes the image to Docker Hub, making it immediately available for the production server to pull
+
+## Monitoring with Prometheus and Grafana
+
+Memex includes built-in monitoring capabilities using Prometheus for metrics collection and Grafana for visualization.
+
+### Services
+
+- **Prometheus**: Scrapes metrics from the Spring Boot application and RabbitMQ exporter
+- **Grafana**: Provides dashboards to visualize system performance
+- **RabbitMQ Exporter**: Exposes RabbitMQ metrics in Prometheus format
+
+### Setup Grafana Dashboard
+
+#### Step 1: Access Grafana
+
+1. Open your browser and go to: http://localhost:3000
+2. Login with:
+   - Username: `admin`
+   - Password: `admin`
+3. You'll be prompted to change the password (you can skip this for now)
+
+#### Step 2: Add Prometheus as Data Source
+
+1. Click on the Configuration icon (gear) in the left sidebar
+2. Select **Data Sources**
+3. Click **Add data source**
+4. Select **Prometheus**
+5. Configure:
+   - **URL**: `http://prometheus:9090` (use service name since they're on the same network)
+   - Click **Save & Test**
+   - You should see "Data source is working"
+
+#### Step 3: Import the Dashboard
+
+1. Click on the plus icon (plus) in the left sidebar
+2. Select **Import**
+3. Click **Upload JSON file**
+4. Select the file: `grafana-dashboard.json` from the project root
+5. Click **Load**
+6. Select the Prometheus data source you just created
+7. Click **Import**
+
+#### Step 4: Generate Traffic and View Metrics
+
+Run the test script to generate API requests:
+
+```bash
+./test-api.sh
+```
+
+Or manually test:
+
+```bash
+# Search requests
+curl "http://localhost:8080/api/search?q=test"
+curl "http://localhost:8080/api/search?q=document"
+
+# Upload a file
+curl -X POST -F "files=@/path/to/your/file.txt" http://localhost:8080/api/upload
+
+# Generate load
+for i in {1..20}; do
+  curl -s "http://localhost:8080/api/search?q=load${i}" > /dev/null
+  sleep 0.1
+done
+```
+
+Once you have traffic, the dashboard will show:
+
+- **HTTP Request Latency**: Maximum request latency over time (`http_server_requests_seconds_max`)
+- **RabbitMQ Message Activity**: Total messages published to queues (`rabbitmq_queue_messages_published_total`)
+
+Note: Queue depth (`rabbitmq_queue_messages_ready`) will typically show 0 because messages are consumed immediately. Monitor message activity instead to see queue usage.
+
+### Available Metrics
+
+#### Spring Boot Metrics (from `/actuator/prometheus`)
+
+- `http_server_requests_seconds_max` - Maximum request latency
+- `http_server_requests_seconds_sum` - Total request time
+- `http_server_requests_seconds_count` - Request count
+- `jvm_memory_used_bytes` - JVM memory usage
+- `process_cpu_usage` - CPU usage
+
+#### RabbitMQ Metrics (from RabbitMQ Exporter)
+
+- `rabbitmq_queue_messages_ready` - Messages ready in queue
+- `rabbitmq_queue_messages_unacked` - Unacknowledged messages
+- `rabbitmq_queue_messages_published_total` - Total published messages
+- `rabbitmq_queue_messages_delivered_total` - Total delivered messages
+
+### Troubleshooting
+
+**No metrics showing up?**
+
+1. Check Prometheus targets: http://localhost:9090/targets
+   - Both `memex-backend` and `rabbitmq` should be UP
+2. Verify metrics endpoint: http://localhost:8080/actuator/prometheus
+3. Verify RabbitMQ exporter: http://localhost:9419/metrics
+
+**Grafana can't connect to Prometheus?**
+
+- Make sure both services are on the same Docker network (`memex-network`)
+- Use `http://prometheus:9090` as the URL (not `localhost`)
+
