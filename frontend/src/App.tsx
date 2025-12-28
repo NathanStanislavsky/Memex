@@ -73,7 +73,7 @@ function App() {
     }
   };
 
-  const highlightText = (text: string, searchQuery: string): JSX.Element => {
+  const highlightText = (text: string, searchQuery: string): React.ReactElement => {
     if (!searchQuery.trim()) {
       return <>{text}</>;
     }
