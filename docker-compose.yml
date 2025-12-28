@@ -16,6 +16,8 @@ services:
       timeout: 5s
       retries: 30
       start_period: 60s
+    networks:
+      - memex-network
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.11.1
@@ -26,6 +28,8 @@ services:
       - "5601:5601"
     depends_on:
       - elasticsearch
+    networks:
+      - memex-network
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -42,6 +46,22 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    networks:
+      - memex-network
+
+  rabbitmq-exporter:
+    image: kbudde/rabbitmq-exporter:latest
+    container_name: memex-rabbitmq-exporter
+    ports:
+      - "9419:9419"
+    environment:
+      - RABBIT_URL=http://rabbitmq:15672
+      - RABBIT_USER=guest
+      - RABBIT_PASSWORD=guest
+    networks:
+      - memex-network
+    depends_on:
+      - rabbitmq
 
   minio:
     image: quay.io/minio/minio
@@ -61,6 +81,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - memex-network
 
   app:
     build: .
@@ -68,6 +90,8 @@ services:
     ports:
       - "8080:8080"
     environment:
+      - SERVER_PORT=8080
+
       # CONNECT TO RABBITMQ
       - SPRING_RABBITMQ_HOST=rabbitmq
       - SPRING_RABBITMQ_PORT=5672
@@ -89,6 +113,39 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    networks:
+      - memex-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: memex-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - memex-network
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: memex-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - memex-network
+    depends_on:
+      - prometheus
 volumes:
   es-data:
   minio-data:
+
+networks:
+  memex-network:
+    driver: bridge
